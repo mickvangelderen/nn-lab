@@ -5,6 +5,22 @@ use std::{
     io::Read,
 };
 
+pub fn read_images_from_file(path: &str) -> Result<Vec<Image>> {
+    let mut reader = flate2::read::GzDecoder::new(std::io::BufReader::new(std::fs::File::open(
+        path
+    )?));
+
+    read_images(&mut reader)
+}
+
+pub fn read_labels_from_file(path: &str) -> Result<Vec<u8>> {
+    let mut reader = flate2::read::GzDecoder::new(std::io::BufReader::new(std::fs::File::open(
+        path
+    )?));
+
+    read_labels(&mut reader)
+}
+
 pub fn read_labels<R: Read>(reader: &mut R) -> Result<Vec<u8>> {
     let magic = reader.read_i32::<BigEndian>()?;
     assert_eq!(magic, 0x0801);
