@@ -6,3 +6,4 @@ edition = "2021"
 [dependencies]
 byteorder = "1.5.0"
 flate2 = "1.0.32"
+rand = "0.8.5"
