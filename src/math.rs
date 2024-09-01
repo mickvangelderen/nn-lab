@@ -125,9 +125,13 @@ macro_rules! index_type {
     };
 }
 
-/// The `Extent` trait allows the extent to be a different type from the index. This enables zero-sized extents through
-/// `Static`.
-pub trait Extent: Copy + Into<usize> {}
+pub trait Indices {
+    type Array;
+
+    fn into_usize(self) -> Self::Array;
+
+    fn from_usize(array: Self::Array) -> Self;
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct Static<const N: usize>;
@@ -138,19 +142,25 @@ impl<const N: usize> From<Static<N>> for usize {
     }
 }
 
-impl<const N: usize> Extent for Static<N> {}
+pub trait Indexer: IntoIterator<Item = Self::Expanded> {
+    type Expanded;
 
-pub trait Indexer<I> {
-    fn flatten(&self, indices: I) -> Option<usize>;
+    fn flatten(&self, indices: Self::Expanded) -> Option<usize>;
+
+    fn expand(&self, index: usize) -> Option<Self::Expanded>;
+
+    fn len(&self) -> usize;
 }
 
 pub struct Square<E>(E);
 
-impl<E0> Indexer<[usize; 2]> for Square<E0>
+impl<E0> Indexer for Square<E0>
 where
     E0: Copy + Into<usize>,
 {
-    fn flatten(&self, [i0, i1]: [usize; 2]) -> Option<usize> {
+    type Expanded = [usize; 2];
+
+    fn flatten(&self, [i0, i1]: Self::Expanded) -> Option<usize> {
         let e0 = self.0.into();
 
         if i0 >= e0 || i1 >= e0 {
@@ -159,15 +169,85 @@ where
 
         Some(i1 * e0 + i0)
     }
+
+    fn expand(&self, i: usize) -> Option<Self::Expanded> {
+        let e0 = self.0.into();
+
+        if i >= e0 * e0 {
+            return None
+        }
+
+        let i0 = i % e0;
+        let i1 = i / e0;
+
+        Some([i0, i1])
+    }
+
+    fn len(&self) -> usize {
+        let e0 = self.0.into();
+        e0 * e0
+    }
+}
+
+struct IndexerIter<X> {
+    index: usize,
+    indexer: X,
+}
+
+impl<X> IndexerIter<X> {
+    fn new(indexer: X) -> Self {
+        Self {
+            index: 0,
+            indexer,
+        }
+    }
+}
+
+impl<X> Iterator for IndexerIter<X> where X: Indexer {
+    type Item = X::Expanded;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.indexer.expand(self.index).inspect(|_| self.index += 1)
+    }
+    
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.len();
+        (len, Some(len))
+    }
+    
+    fn count(self) -> usize
+    where
+        Self: Sized,
+    {
+        self.len()
+    }
+}
+
+impl<X> ExactSizeIterator for IndexerIter<X> where X: Indexer {
+    fn len(&self) -> usize {
+        self.indexer.len() - self.index
+    }
+}
+
+impl<E0> IntoIterator for Square<E0> where E0: Copy + Into<usize> {
+    type Item = <Self as Indexer>::Expanded;
+
+    type IntoIter = IndexerIter<Self>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        IndexerIter::new(self)
+    }
 }
 
 pub struct SquareSymmetric<E>(E);
 
-impl<E0> Indexer<[usize; 2]> for SquareSymmetric<E0>
+impl<E0> Indexer for SquareSymmetric<E0>
 where
     E0: Copy + Into<usize>,
 {
-    fn flatten(&self, [i0, i1]: [usize; 2]) -> Option<usize> {
+    type Expanded = [usize; 2];
+
+    fn flatten(&self, [i0, i1]: Self::Expanded) -> Option<usize> {
         let e0 = self.0.into();
 
         if i0 >= e0 || i1 >= e0 {
@@ -190,6 +270,34 @@ where
         // this can impact perf
 
         Some(i0 + i1 * (2 * e0 - 1 - i1) / 2)
+    }
+
+    fn expand(&self, i: usize) -> Option<Self::Expanded> {
+        let e0 = self.0.into();
+
+        if i >= e0 * e0 {
+            return None
+        }
+
+        let i0 = i % e0;
+        let i1 = i / e0;
+
+        Some([i0, i1])
+    }
+
+    fn len(&self) -> usize {
+        let e0 = self.0.into();
+        e0 * e0
+    }
+}
+
+impl<E0> IntoIterator for SquareSymmetric<E0> where E0: Copy + Into<usize> {
+    type Item = <Self as Indexer>::Expanded;
+
+    type IntoIter = IndexerIter<Self>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        IndexerIter::new(self)
     }
 }
 
