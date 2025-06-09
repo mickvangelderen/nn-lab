@@ -189,7 +189,7 @@ where
     }
 }
 
-struct IndexerIter<X> {
+pub struct IndexerIter<X> {
     index: usize,
     indexer: X,
 }
@@ -331,7 +331,7 @@ fn oob() -> ! {
 impl<D, X, I> Index<I> for Array<D, X, I>
 where
     D: Deref<Target: Index<usize>>,
-    X: Indexer<I::Array>,
+    X: Indexer<Expanded = I::Array>,
     I: IntoArray<usize>,
 {
     type Output = <D::Target as Index<usize>>::Output;
@@ -344,7 +344,7 @@ where
 impl<D, X, I> IndexMut<I> for Array<D, X, I>
 where
     D: DerefMut<Target: IndexMut<usize>>,
-    X: Indexer<I::Array>,
+    X: Indexer<Expanded = I::Array>,
     I: IntoArray<usize>,
 {
     fn index_mut(&mut self, indices: I) -> &mut Self::Output {
